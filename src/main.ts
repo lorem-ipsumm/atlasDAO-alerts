@@ -4,6 +4,7 @@ import { loadObject, saveObject, sleep } from "./utils";
 import { alertDiscord } from "./discord";
 import { alertTelegram } from "./telegram";
 import { alertTwitter } from "./twitter";
+import cron from 'node-cron';
 
 const rpcEndpoint = "https://rpc.elgafar-1.stargaze-apis.com/";
 let client: CosmWasmClient;
@@ -38,13 +39,11 @@ const getAllRaffles = async (
 // send alerts to all platforms
 const sendAlerts = async (raffles: RAFFLE[]) => {
   for (const raffle of raffles) {
-    // send alert to discord
+    // send alerts
     await alertDiscord(raffle);
-    // send alert to telegram
     await alertTelegram(raffle);
-    // send alert to twitter
     await alertTwitter(raffle);
-    // wait x seconds before sending the next alert
+    // wait x seconds before sending the next batch 
     await sleep(5000);
   }
 };
@@ -96,8 +95,13 @@ const main = async () => {
 
   // if there are new raffles, send alerts
   if (newRaffles.length > 0) {
+    console.log(`Sending alerts for ${newRaffles.length} new raffles`);
     await sendAlerts(newRaffles);
   }
 };
 
-main();
+cron.schedule('* * * * *', function() {
+  console.log('---------------------');
+  console.log('Running Cron Job');
+  main();
+});

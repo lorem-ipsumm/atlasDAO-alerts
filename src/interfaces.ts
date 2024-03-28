@@ -14,8 +14,8 @@ export interface RAFFLE {
     assets: any[];
     raffle_ticket_price: {
       coin: {
+        denom: string;
         amount: string;
-        currency: string;
       };
     };
     number_of_tickets: number;
@@ -32,4 +32,22 @@ export interface RAFFLE {
       raffle_preview: number;
     };
   };
+}
+
+export interface TOKEN_RESPONSE {
+  imageUrl: string;
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  ownerAddr: string;
+  tokenId: string;
+  collectionAddr: string;
+}
+
+export interface COLLECTION_RESPONSE {
+  name: string;
+  description: string;
+  createdByAddr: string;
+  collectionAddr: string;
 }
