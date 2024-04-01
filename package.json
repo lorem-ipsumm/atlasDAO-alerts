@@ -10,12 +10,15 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/node-telegram-bot-api": "^0.64.6",
     "axios": "^1.6.8",
     "cosmwasm": "^1.1.1",
     "dotenv": "^16.4.5",
     "graphql-request": "^6.1.0",
     "moment": "^2.30.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.65.1",
+    "rettiwt-api": "^2.6.2"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

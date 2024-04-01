@@ -1,3 +1,14 @@
+export interface ALERT_DATA {
+  fullName: string;
+  owner: string;
+  formattedStartDate: string;
+  formattedEndDate: string;
+  numNfts: number;
+  ticketPrice: string;
+  ticketSupply: number;
+  image: string;
+}
+
 export enum RAFFLE_STATE {
   Closed = "closed",
   Created = "created",

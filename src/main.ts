@@ -1,12 +1,20 @@
-import { RAFFLE, RAFFLE_STATE } from "./interfaces";
+require("dotenv").config();
+import { ALERT_DATA, RAFFLE, RAFFLE_STATE } from "./interfaces";
 import { CosmWasmClient } from "cosmwasm";
-import { loadObject, saveObject, sleep } from "./utils";
+import {
+  fetchAssetInfo,
+  fetchCollectionInfo,
+  loadObject,
+  saveObject,
+  sleep,
+} from "./utils";
 import { alertDiscord } from "./discord";
 import { alertTelegram } from "./telegram";
 import { alertTwitter } from "./twitter";
-import cron from 'node-cron';
+import cron from "node-cron";
+import moment from "moment";
 
-const rpcEndpoint = "https://rpc.elgafar-1.stargaze-apis.com/";
+const rpcEndpoint = process.env.TESTNET_RPC_ENDPOINT;
 let client: CosmWasmClient;
 
 // use cosmwasm client to fetch all raffles
@@ -18,8 +26,7 @@ const getAllRaffles = async (
   startAfter: number
 ): Promise<RAFFLE[]> => {
   try {
-    const contractAddress =
-      "stars1hqvn37a7dn58gzq6md4y5gk20e9j4gmm9eu8c7g5vhqj5mpsd0uqg55ngg";
+    const contractAddress = process.env.CONTRACT_ADDRESS as string;
     // send query to contract
     const query = await client.queryContractSmart(contractAddress, {
       all_raffles: {
@@ -36,26 +43,100 @@ const getAllRaffles = async (
   }
 };
 
-// send alerts to all platforms
 const sendAlerts = async (raffles: RAFFLE[]) => {
   for (const raffle of raffles) {
-    // send alerts
-    await alertDiscord(raffle);
-    await alertTelegram(raffle);
-    await alertTwitter(raffle);
-    // wait x seconds before sending the next batch 
-    await sleep(5000);
+    try {
+      const {
+        // raffle_id,
+        raffle_info: {
+          owner,
+          assets,
+          raffle_ticket_price: {
+            coin: { amount, denom },
+          },
+          raffle_options: {
+            raffle_start_timestamp,
+            raffle_duration,
+            max_ticket_number,
+          },
+        },
+      } = raffle;
+
+      // get formatted start date
+      const startTimestamp = new Date(
+        Math.floor(parseInt(raffle_start_timestamp) / 1000000)
+      );
+      const formattedStartDate = moment(startTimestamp).format(
+        "MMM. D YYYY, h:mm:ss a"
+      );
+      // get formatted end date
+      const endTimestamp = new Date(
+        startTimestamp.getTime() + raffle_duration * 1000
+      );
+      const formattedEndDate = moment(endTimestamp).format(
+        "MMM. D YYYY, h:mm:ss a"
+      );
+      // get formatted amount
+      const formattedAmount = parseFloat(amount) / Math.pow(10, 6);
+
+      // get the nft and collection info
+      const assetInfo = await fetchAssetInfo(assets[0].sg721_token);
+      if (!assetInfo) return;
+      const collectionInfo = await fetchCollectionInfo(
+        assetInfo.collectionAddr
+      );
+      if (!collectionInfo) return;
+
+      // extract nft and collection info
+      const collectionName = collectionInfo.name;
+      const nftName = assetInfo.name;
+      const fullName = `${collectionName} ${nftName}`;
+      const nftImage = `https://ipfs.daodao.zone/ipfs/${assetInfo.imageUrl.replace(
+        "ipfs://",
+        ""
+      )}`;
+
+      // build alert object
+      const alertData: ALERT_DATA = {
+        fullName,
+        owner,
+        formattedStartDate,
+        formattedEndDate,
+        numNfts: assets.length,
+        ticketPrice: `${formattedAmount} ${denom.substring(1)}`,
+        ticketSupply: max_ticket_number,
+        image: nftImage,
+      };
+
+      // send alerts
+      await alertDiscord(alertData);
+      await alertTelegram(alertData);
+      await alertTwitter(alertData);
+
+      // wait x seconds before sending the next batch
+      await sleep(5000);
+    } catch (e) {
+      console.log(e);
+      await sleep(10000);
+    }
   }
 };
 
 const main = async () => {
+
+  // check for valid env vars
+  if (!rpcEndpoint || !process.env.CONTRACT_ADDRESS) {
+    console.log("Missing env vars");
+    return;
+  }
+
   // load save data from file (data.json)
   const savedData = {
-    ...(await loadObject("saveData.json")),
+    ...(await loadObject("foundRaffles.json")),
   };
 
   // init client
-  client = await CosmWasmClient.connect(rpcEndpoint);
+  client = await CosmWasmClient.connect(rpcEndpoint as string);
 
   // fetch all raffles
   const raffles = await getAllRaffles(
@@ -91,7 +172,7 @@ const main = async () => {
   savedData.lastRun = Date.now();
 
   // save the new data to file
-  saveObject("saveData.json", savedData);
+  saveObject("foundRaffles.json", savedData);
 
   // if there are new raffles, send alerts
   if (newRaffles.length > 0) {
@@ -100,8 +181,9 @@ const main = async () => {
   }
 };
 
-cron.schedule('* * * * *', function() {
-  console.log('---------------------');
-  console.log('Running Cron Job');
+// run the main function every minute
+cron.schedule("* * * * *", function () {
+  console.log("---------------------");
+  console.log("Running Cron Job");
   main();
 });
